@@ -1,0 +1,8 @@
+target
+build
+log
+logs
+.*
+!.gitignore
+*.iws
+*.ipr
