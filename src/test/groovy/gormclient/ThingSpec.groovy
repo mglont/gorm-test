@@ -8,33 +8,58 @@
 package gormclient
 
 import grails.gorm.annotation.Entity
-import grails.transaction.Rollback
-import grails.transaction.Transactional
 import org.grails.orm.hibernate.HibernateDatastore
+import org.hibernate.SessionFactory
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.IntegrationTest
+import org.springframework.boot.test.SpringApplicationContextLoader
+import org.springframework.context.ApplicationContext
+import org.springframework.orm.jpa.EntityManagerFactoryUtils
+import org.springframework.test.annotation.Rollback
+import org.springframework.test.context.ContextConfiguration
+import org.springframework.test.context.TestExecutionListeners
+import org.springframework.test.context.web.WebAppConfiguration
 import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronizationManager
+import org.springframework.web.context.WebApplicationContext
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
 
+@TestExecutionListeners
+@ContextConfiguration(loader = SpringApplicationContextLoader.class, classes = PersistenceContextConfig.class)
+@IntegrationTest
 class ThingSpec extends Specification {
 
     @Shared @AutoCleanup HibernateDatastore datastore
-    //@Shared PlatformTransactionManager txManager
+
+    @Autowired
+    @Shared PlatformTransactionManager txManager
+
+    @Autowired
+    SessionFactory sessionFactory
+
+    @Autowired
+    ApplicationContext applicationContext
 
     void setupSpec() {
-        datastore = new HibernateDatastore(Pet)
-        //txManager = datastore.getTransactionManager()
+        datastore = new HibernateDatastore(Pet, Thing)
         println "setupSpec done"
     }
 
-    //@Transactional
+
+    @Transactional
     def setup() {
+        sessionFactory.openSession()
+        boolean haveTx = TransactionSynchronizationManager.isSynchronizationActive()
+        println "haveTx = $haveTx"
         def p = new Pet(name: 'doggy')
         p.save()
         println "setup  done"
     }
 
-    //@Rollback
+    @Rollback
     void "gorm works"() {
         expect:
         Pet.count() == 1
@@ -55,12 +80,23 @@ class ThingSpec extends Specification {
         Pet.withNewSession { doggy.save() }
         Pet.withNewSession { Pet.get(1).counter } == 2
     }
+
+    def tearDown() {
+        println "tear down invoked"
+        sessionFactory.currentSession.close()
+        boolean haveTx = TransactionSynchronizationManager.isSynchronizationActive()
+        println "haveTx = $haveTx"
+    }
 }
 
 @Entity
 class Pet {
     String name
     int age = 0
+
+    String toString() {
+        "$name the pet"
+    }
 
     static constraints = {
         name unique: true

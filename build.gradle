@@ -16,7 +16,7 @@ buildscript {
         // uses spring-boot plugin which is not compatible with Gradle 3
         // see https://github.com/spring-gradle-plugins/dependency-management-plugin/issues/87
         classpath("org.springframework.boot:spring-boot-gradle-plugin:1.3.5.RELEASE")
-        // TODO remove this line is using Spring Boot 1.4+
+        // TODO remove this line when using Spring Boot 1.4+
         classpath "io.spring.gradle:dependency-management-plugin:0.6.0.RELEASE"
     }
 }
@@ -41,6 +41,7 @@ repositories {
 // In this section you declare the dependencies for your production and test code
 dependencies {
     compile("org.springframework.boot:spring-boot-starter-web")
+    compile("org.springframework.boot:spring-boot-actuator")
     compile("org.grails:gorm-hibernate4-spring-boot:6.0.0.RC2")
 
     runtime("com.h2database:h2")
