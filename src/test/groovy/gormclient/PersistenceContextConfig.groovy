@@ -10,12 +10,14 @@ import org.springframework.context.annotation.PropertySource
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy
+import org.springframework.orm.hibernate4.HibernateTransactionManager
 import org.springframework.orm.hibernate4.LocalSessionFactoryBean
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.EnableTransactionManagement
 import org.springframework.transaction.support.TransactionTemplate
 
-import javax.activation.DataSource
+import javax.sql.DataSource
+
 /**
  * Created by mglont on 27/09/16.
  */
@@ -31,24 +33,21 @@ class PersistenceContextConfig {
     @Value('${spring.datasource.username}')
     private String password
 
-    @Bean(destroyMethod = "close")
-    DataSource rawDataSource() {
+    @Bean()
+    DriverManagerDataSource dataSource() {
         new DriverManagerDataSource(url, username, password)
     }
 
     @Bean
-    LazyConnectionDataSourceProxy lazyConnectionDataSourceProxy() {
-        new LazyConnectionDataSourceProxy(rawDataSource())
+    TransactionAwareDataSourceProxy txDataSource() {
+        new TransactionAwareDataSourceProxy(dataSource())
     }
 
     @Bean
-    TransactionAwareDataSourceProxy dataSource() {
-        new TransactionAwareDataSourceProxy(lazyConnectionDataSourceProxy())
-    }
-
-    @Bean
-    SessionFactory sessionFactory() {
-        new LocalSessionFactoryBean(lazyConnectionDataSourceProxy())
+    LocalSessionFactoryBean sessionFactory() {
+        def factory = new LocalSessionFactoryBean(dataSource: dataSource())
+        factory.hibernateProperties = ['hibernate.dialect': 'org.hibernate.dialect.H2Dialect'] as Properties
+        factory
     }
 
     @Bean
@@ -58,7 +57,8 @@ class PersistenceContextConfig {
 
     @Bean
     PlatformTransactionManager transactionManager() {
-        new GrailsHibernateTransactionManager(lazyConnectionDataSourceProxy())
+        //new GrailsHibernateTransactionManager(sessionFactory: sessionFactory().getObject())
+        new HibernateTransactionManager(sessionFactory: sessionFactory().object)
     }
 
     public static void main(String[] args) {

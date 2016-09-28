@@ -14,6 +14,11 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.IntegrationTest
 import org.springframework.boot.test.SpringApplicationContextLoader
 import org.springframework.context.ApplicationContext
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer
+import org.springframework.core.env.PropertySource
+import org.springframework.core.env.PropertySources
+import org.springframework.core.env.PropertySourcesPropertyResolver
 import org.springframework.orm.jpa.EntityManagerFactoryUtils
 import org.springframework.test.annotation.Rollback
 import org.springframework.test.context.ContextConfiguration
@@ -34,17 +39,17 @@ class ThingSpec extends Specification {
 
     @Shared @AutoCleanup HibernateDatastore datastore
 
-    @Autowired
     @Shared PlatformTransactionManager txManager
+    @Shared SessionFactory sessionFactory
 
-    @Autowired
-    SessionFactory sessionFactory
-
-    @Autowired
-    ApplicationContext applicationContext
+    @Shared ApplicationContext ctx
 
     void setupSpec() {
+        ctx = new AnnotationConfigApplicationContext();
+        ctx.register(PersistenceContextConfig.class)
+        ctx.refresh()
         datastore = new HibernateDatastore(Pet, Thing)
+        txManager = ctx.getBean("transactionManager", PlatformTransactionManager)
         println "setupSpec done"
     }
 
