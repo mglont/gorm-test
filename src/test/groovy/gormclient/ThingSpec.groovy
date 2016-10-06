@@ -9,88 +9,63 @@ package gormclient
 
 import grails.gorm.annotation.Entity
 import org.grails.orm.hibernate.HibernateDatastore
+import org.grails.orm.hibernate.connections.HibernateConnectionSourceFactory
 import org.hibernate.SessionFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.IntegrationTest
 import org.springframework.boot.test.SpringApplicationContextLoader
 import org.springframework.context.ApplicationContext
-import org.springframework.context.annotation.AnnotationConfigApplicationContext
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer
-import org.springframework.core.env.PropertySource
-import org.springframework.core.env.PropertySources
-import org.springframework.core.env.PropertySourcesPropertyResolver
-import org.springframework.orm.jpa.EntityManagerFactoryUtils
-import org.springframework.test.annotation.Rollback
 import org.springframework.test.context.ContextConfiguration
-import org.springframework.test.context.TestExecutionListeners
-import org.springframework.test.context.web.WebAppConfiguration
-import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.annotation.EnableTransactionManagement
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronizationManager
-import org.springframework.web.context.WebApplicationContext
-import spock.lang.AutoCleanup
-import spock.lang.Shared
 import spock.lang.Specification
 
-@TestExecutionListeners
-@ContextConfiguration(loader = SpringApplicationContextLoader.class, classes = PersistenceContextConfig.class)
-@IntegrationTest
+@ContextConfiguration(loader = SpringApplicationContextLoader.class,
+        classes = PersistenceContextConfig.class)
+// DEFAULT: @TestExecutionListeners(listeners = [DependencyInjectionTestExecutionListener, TransactionalTestExecutionListener])
+@EnableTransactionManagement(proxyTargetClass = true)
 class ThingSpec extends Specification {
-
-    @Shared @AutoCleanup HibernateDatastore datastore
-
-    @Shared PlatformTransactionManager txManager
-    @Shared SessionFactory sessionFactory
-
-    @Shared ApplicationContext ctx
-
-    void setupSpec() {
-        ctx = new AnnotationConfigApplicationContext();
-        ctx.register(PersistenceContextConfig.class)
-        ctx.refresh()
-        datastore = new HibernateDatastore(Pet, Thing)
-        txManager = ctx.getBean("transactionManager", PlatformTransactionManager)
-        println "setupSpec done"
-    }
-
+// dependency injection works -- e.g.
+//    @Autowired
+//    HibernateDatastore datastore
+//
+//    @Autowired
+//    HibernateConnectionSourceFactory hibernateConnectionSourceFactory
 
     @Transactional
-    def setup() {
-        sessionFactory.openSession()
-        boolean haveTx = TransactionSynchronizationManager.isSynchronizationActive()
-        println "haveTx = $haveTx"
-        def p = new Pet(name: 'doggy')
-        p.save()
-        println "setup  done"
-    }
-
-    @Rollback
     void "gorm works"() {
         expect:
-        Pet.count() == 1
+        TransactionSynchronizationManager.isSynchronizationActive()
 
         when:
-        Pet doggy = Pet.findByName('doggy')
+        def p = new Pet(name: 'doggy')
+        Pet.withNewSession { p.save(flush: true) }
+
         then:
-        doggy.counter == 0
+        Pet.withNewSession { Pet.count() } == 1
 
         when:
-        doggy.counter--
+        Pet doggy = Pet.withNewSession { Pet.findByName('doggy') }
+        then:
+        doggy.age == 0
+
+        when:
+        doggy.age--
         then:
         doggy.validate() == false
 
         when:
-        doggy.counter = 2
-        then:
-        Pet.withNewSession { doggy.save() }
-        Pet.withNewSession { Pet.get(1).counter } == 2
-    }
+        doggy.age = 2
 
-    def tearDown() {
-        println "tear down invoked"
-        sessionFactory.currentSession.close()
-        boolean haveTx = TransactionSynchronizationManager.isSynchronizationActive()
-        println "haveTx = $haveTx"
+        then:
+        Pet.withNewSession { doggy.save(flush: true) }
+        !doggy.hasErrors()
+
+        when:
+        Pet.withNewSession { Pet.list()*.delete(flush: true) }
+
+        then:
+        Pet.withNewSession { Pet.count() } == 0
     }
 }
 
